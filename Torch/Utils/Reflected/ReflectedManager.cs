@@ -77,7 +77,30 @@ namespace Torch.Utils
         /// <param name="asm">Assembly to process</param>
         public static void Process(Assembly asm)
         {
-            foreach (Type type in asm.GetTypes())
+            Type[] types;
+            try
+            {
+                types = asm.GetTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                // Some types failed to load (likely due to missing dependencies or runtime incompatibilities)
+                // Process only the types that loaded successfully
+                types = ex.Types.Where(t => t != null).ToArray();
+                
+                _log?.Warn($"Assembly {asm.GetName().Name} has types that failed to load. Processing {types.Length} successfully loaded types.");
+                
+                // Log specific loader exceptions for debugging
+                if (ex.LoaderExceptions != null)
+                {
+                    foreach (var loaderEx in ex.LoaderExceptions.Take(5)) // Limit to first 5 to avoid log spam
+                    {
+                        _log?.Debug(loaderEx, $"Loader exception in {asm.GetName().Name}");
+                    }
+                }
+            }
+            
+            foreach (Type type in types)
                 if (!type.HasAttribute<ReflectedLazyAttribute>())
                     Process(type);
         }
